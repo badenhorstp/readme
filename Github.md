@@ -31,7 +31,7 @@ $ git add .
 ```bash
 $ git commit -m [Message]
 ```
-### Push to upstream remote repository
+Push to upstream remote repository
 ```bash
 $ git push --set-upstream origin master
 ```
