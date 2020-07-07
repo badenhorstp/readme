@@ -78,6 +78,22 @@ allprojects {
     </application>
 </manifest>
 ```
+
+6. Add permissions to `[project root]/android/app/src/main/AndroidManifest.xml`
+```xml
++    <uses-permission android:name="android.permission.INTERNET" />
++    <uses-permission android:name="android.permission.CAMERA" />
++    <uses-permission android:name="android.permission.VIBRATE"/>
+```
+7. Add dependencies to `[project root/android/app/build.gradle]`
+```gradle
+    packagingOptions {
++        exclude 'META-INF/proguard/androidx-annotations.pro'
++        pickFirst 'lib/armeabi-v7a/libgnustl_shared.so'
++        pickFirst 'lib/x86/libgnustl_shared.so'
++        pickFirst 'lib/*/libc++_shared.so'
+    }
+```
 ## Rename React Native application ID
 1. Change application id in `[project root]/android/app/build.gradle`
 ```gradle
