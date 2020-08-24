@@ -19,6 +19,11 @@ $ systemctl set-default graphical.target
 2. Install X11 driver for VMWare client
 ```bash
 $ dnf install xorg-x11-drv-vmware open-vm-tools-desktop -y
-
 ```
+
+## Install only X Windows on CentOS 8
+```bash
+$ dnf groupinstall "X Window"
+```
+
 
