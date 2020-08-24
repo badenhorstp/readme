@@ -37,3 +37,13 @@ net localgroup administrators iisadmin /add
 ComSetup.exe phoenixws_phoenixxm C:\phoenixws\phoenixxm\webassembly 2003
 ```
 
+## Disable Windows firewall
+```powershell
+Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled false
+```
+
+## Start Windows 2019 Core docker image with IIS and web mangement
+```powershell
+docker run -it -h <host name> --name <container name> -p 80:80 -p 8172:8172 <image name> powershell.exe
+```
+
