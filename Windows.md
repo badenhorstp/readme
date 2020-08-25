@@ -47,3 +47,33 @@ Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled false
 docker run -it -h <host name> --name <container name> -p 80:80 -p 8172:8172 <image name> powershell.exe
 ```
 
+## Install Kubernetes on Windows 2019 Core
+```powershell
+Install-PackageProvider -Name NuGet -Force
+Install-Module -Name PowerShellGet -Force
+Install-Script -Name 'install-kubectl' -Scope CurrentUser -Force
+```
+
+## Enable PowerShell remote access
+1. Enable Remote Management Service on remote machine
+```powershell
+Enable-Remoting -Force
+Set-Item wsman:\localhost\client\trustedhosts *
+Restart-Service WinRM
+Test-WsMan <remote host>
+```
+2. Connect to remote host
+```powershell
+Enter-PSSession -ComputerName <remote host> -Credential <username>
+```
+
+## Update path environment variable
+```powershell
+[System.Environment]::SetEnvironmentVariable("Path",$env:Path,";<new path>","Machine")
+```
+
+## Disable monitor time out on Windows 2019 core
+```powershell
+powercfg /x monitor-timeout-dc 0
+powercfg /x monitor-timeout-ac 0
+```
