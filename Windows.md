@@ -1,6 +1,6 @@
 ## Install Docker on Windows 2019 Core
 ```powershell
-Install-Module -Name DockerMsfProvider -Repository PSGallery -Force
+Install-Module -Name DockerMsftProvider -Repository PSGallery -Force
 
 Install-Package -Name Docker -ProviderName DockerMsftProvider
 
@@ -57,7 +57,7 @@ Install-Script -Name 'install-kubectl' -Scope CurrentUser -Force
 ## Enable PowerShell remote access
 1. Enable Remote Management Service on remote machine
 ```powershell
-Enable-Remoting -Force
+Enable-PsRemoting -Force
 Set-Item wsman:\localhost\client\trustedhosts *
 Restart-Service WinRM
 Test-WsMan <remote host>
@@ -76,4 +76,14 @@ Enter-PSSession -ComputerName <remote host> -Credential <username>
 ```powershell
 powercfg /x monitor-timeout-dc 0
 powercfg /x monitor-timeout-ac 0
+```
+
+## Windows 2019 Core change default shell
+```powershell
+Set-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\WinLogon' -Name Shell -Value 'powershell.exe'
+```
+
+## Check status of Windows 2019 Core service
+```powershell
+Get-WmiObject -Class win32_service | Where-Object {$_.name -eq '<service name>'}
 ```
