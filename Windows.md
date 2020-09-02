@@ -1,12 +1,3 @@
-## Install Docker on Windows 2019 Core
-```powershell
-Install-Module -Name DockerMsftProvider -Repository PSGallery -Force
-
-Install-Package -Name Docker -ProviderName DockerMsftProvider
-
-Restart-Computer -Force
-```
-
 ## Install IIS on Windows 2019 Core container
 1. Install IIS
 ```powershell
@@ -32,6 +23,13 @@ net user iisadmin P@ssword99 /add
 net localgroup administrators iisadmin /add
 ```
 
+4. Add application virtual directory, app pool and application
+```powershell
+New-WebAppPool PhoenixXM
+New-WebVirtualDirectory -Site "Default Web Site" -Name phoenixws -PhysicalPath c:\phoenixws
+New-WebApplication -Site "Default Web Site" -Name phoenixws/phoenixxm -PhysicalPath c:\phoenixws\phoenixxm -ApplicationPool PhoenixXM
+```
+
 ## Install Phoenix XM web service
 ```
 ComSetup.exe phoenixws_phoenixxm C:\phoenixws\phoenixxm\webassembly 2003
@@ -42,7 +40,7 @@ ComSetup.exe phoenixws_phoenixxm C:\phoenixws\phoenixxm\webassembly 2003
 Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled false
 ```
 
-## Start Windows 2019 Core docker image with IIS and web mangement
+## Start Windows 2019 Core docker image with IIS and web management
 ```powershell
 docker run -it -h <host name> --name <container name> -p 80:80 -p 8172:8172 <image name> powershell.exe
 ```
@@ -86,4 +84,9 @@ Set-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\WinLo
 ## Check status of Windows 2019 Core service
 ```powershell
 Get-WmiObject -Class win32_service | Where-Object {$_.name -eq '<service name>'}
+```
+
+## Retreive Windows Release ID
+```powershell
+Get-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\' -Name ReleaseId
 ```
