@@ -8,3 +8,7 @@ $ sudo nano /etc/init.d/unblock-bluetooth
 
 $ sudo ln -s /etc/init.d/unblock-bluetooth /etc/rc2.d/S01unblock-bluetooth
 ```
+## Enable FireFox for Touch Screen
+```
+$ echo export MOZ_USE_XINPUT2=1 | sudo tee /etc/profile.d/use-xinput2.sh
+```
