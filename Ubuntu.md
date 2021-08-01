@@ -18,7 +18,7 @@ $ gsettings set org.gnome.mutter experimental-features "['scale-monitor-framebuf
 ```
 
 ## Install and sign kernel
-https://gloveboxes.github.io/Ubuntu-for-Azure-Developers/docs/signing-kernel-for-secure-boot.html
-https://wiki.ubuntu.com/UEFI/SecureBoot/Signing
-https://ubuntu.com/blog/how-to-sign-things-for-secure-boot
-https://linuxconfig.org/how-to-upgrade-kernel-to-latest-version-on-ubuntu-20-04-focal-fossa-linux
+* https://gloveboxes.github.io/Ubuntu-for-Azure-Developers/docs/signing-kernel-for-secure-boot.html
+* https://wiki.ubuntu.com/UEFI/SecureBoot/Signing
+* https://ubuntu.com/blog/how-to-sign-things-for-secure-boot
+* https://linuxconfig.org/how-to-upgrade-kernel-to-latest-version-on-ubuntu-20-04-focal-fossa-linux
