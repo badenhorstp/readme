@@ -173,7 +173,7 @@ Once Rancher is deployed we'll need to login to our newly setup Rancher UI.
 
 In the next step we will deploy a k3s Kubernetes cluster where Rancher will be deployed.
 
-# 2. Install Kubernetes with K3s
+## 2. Install Kubernetes with K3s
 K3s is the easiest and simplest way to get started with production-grade Kubernetes. It's a fully-conformant CNCF Kubernetes distribution, and further information you can read more at the project's official website.
 
 Running the following command to install k3s onto your Rancher Server VM:
@@ -186,7 +186,7 @@ sudo k3s kubectl get node
 ```
 We now have a fully-functioning Kubernetes cluster that we can install Rancher into!
 
-# 3. Setting Up Rancher
+## 3. Setting Up Rancher
 We are going to use Helm v3 to install Rancher Server into our cluster, so we need to install that first:
 ```bash
 sudo wget -O helm.tar.gz \
@@ -344,3 +344,217 @@ spec:
         securityContext:
           privileged: true
 ```
+
+# Lab Session Three
+## 2. Install Rancher in HA mode
+First, we'll need to setup Rancher in HA mode. This means that the Rancher Management Server will be installed on top of Kubernetes.
+
+K3s is the easiest and simplest way to get started with production-grade Kubernetes. It's a fully-conformant CNCF Kubernetes distribution, and further information you can read more at the project's official website.
+
+Running the following command to install k3s onto your Rancher Server VM:
+```bash
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.21.3+k3s1 sh -
+```
+ 
+This will take about 30 seconds to complete. To verify that it's working, run the following command:
+```bash
+sudo k3s kubectl get node
+```
+We now have a fully-functioning Kubernetes cluster that we can install Rancher into!
+
+We are going to use Helm v3 to install Rancher Server into our cluster, so we need to install that first:
+```bash
+sudo wget -O helm.tar.gz \
+https://get.helm.sh/helm-v3.4.1-linux-amd64.tar.gz
+sudo tar -zxf helm.tar.gz
+sudo mv linux-amd64/helm /usr/local/bin/helm
+sudo chmod +x /usr/local/bin/helm
+sudo rm -rf linux-amd64 helm.tar.gz
+```
+We'll also drop in place the necessary configuration files for kubectl to work:
+```bash
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown -R ubuntu:ubuntu ~/.kube
+export KUBECONFIG=~/.kube/config
+```
+After a successful installation of Helm, let's check to make sure we are ready to install Rancher:
+```bash
+helm version --short
+```
+We then need to install some prerequisites for Rancher, cert-manager is required to allow Rancher to generate its self signed certs. If you are installing using your own certificates this can be omitted. More information is available at Rancher Docs
+```bash
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+helm install \
+  cert-manager --namespace cert-manager \
+  --create-namespace \
+  --version v1.5.3 \
+  --set installCRDs=true \
+  jetstack/cert-manager
+```
+Once the Helm chart has installed, you can monitor the rollout status of both cert-manager and cert-manager-webhook:
+```bash
+kubectl -n cert-manager rollout status deploy/cert-manager
+```
+You should eventually receive output similar to:
+```
+Waiting for deployment "cert-manager" rollout to finish:
+0 of 1 updated replicas are available...
+
+deployment "cert-manager" successfully rolled out
+```
+To check the status of the cert-manager-webhook, we can run a similar command:
+```bash
+kubectl -n cert-manager rollout status deploy/cert-manager-webhook
+```
+You should eventually receive output similar to:
+```
+Waiting for deployment "cert-manager-webhook" rollout to finish:
+0 of 1 updated replicas are available...
+
+deployment "cert-manager-webhook" successfully rolled out
+```
+Next we will install Rancher:
+
+Install Rancher
+```bash
+helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
+helm repo update
+helm install rancher rancher-latest/rancher --namespace cattle-system \
+  --create-namespace \
+  --version v2.5.9 \
+  --set hostname=rancher.54.92.191.19.on.hobbyfarm.io \
+  --set replicas=1
+```
+Before we access Rancher, we need to make sure that cert-manager has signed a certificate in order to make sure our connection to Rancher does not get interrupted. The following bash script will check for the certificate we are looking for.
+```bash
+while true; do 
+  curl -kv https://rancher.54.92.191.19.on.hobbyfarm.io 2>&1 | grep -q "200"
+  if [ $? != 0 ]; then 
+    echo "Rancher isn't ready yet"
+    sleep 5
+    continue
+  fi
+  break
+done
+echo "Rancher is Ready"
+```
+This can take a few minutes, when it shows that "Rancher is Ready" you can proceed to the next step.
+
+## 3. Setup A Kubernetes Cluster
+In this step, we will be creating a Kubernetes Lab environment within Rancher. Normally, in a production case, you would create a Kubernetes Cluster with multiple nodes; however, with this lab environment, we will only be using one virtual machine for the cluster.
+
+First, we'll need to login to our newly setup Rancher UI.
+
+Select the server rancher01, on the right and take note of its public address. This will be the address we use to connect to the Rancher UI. For convenience you should be able to use this URL: https://rancher.54.92.191.19.on.hobbyfarm.io
+
+Once you open that URL in a browser, set a default password and confirm the URL that should be used by the server after that.
+
+Hover over the top left dropdown, then click Global.
+Click Add Cluster.
+The current context is shown in the upper left, and should say 'Global'.
+Note the multiple types of Kubernetes cluster Rancher supports. We will be using Custom for this lab, but there are a lot of possibilities with Rancher.
+Click on the From existing nodes (Custom) Cluster box.
+Enter a name in the Cluster Name box and click Next at the bottom.
+Make sure the boxes etcd, Control Plane, and Worker are all ticked.
+Click Show advanced options to the bottom right of the Worker checkbox.
+Enter the Public Address (35.173.183.83) and Internal Address (172.31.43.156).
+IMPORTANT: It is VERY important that you use the correct External and Internal addresses from the node01 machine for this step, and run it on the correct machine. Failure to do this will cause the future steps to fail.
+Click the clipboard to Copy to Clipboard the docker run command.
+Click Done.
+NOTE: You can find the docker command again by editing the cluster in the UI if needed.
+
+## 4. Bootstrapping a Node in your Kubernetes Cluster
+IMPORTANT NOTE: Make sure you have selected the node01 tab in HobbyFarm in the window to the right. If you run this command on Rancher01 you will cause problems for your scenario session.
+
+Take the copied docker command and run it on node01.
+Within the Rancher UI click on <YOUR_CLUSTER_NAME> which is the name you entered during cluster creation.
+You can watch the state of the cluster as your Kubernetes node node01 registers with Rancher here as well as the Nodes tab.
+Your cluster state on the Global page will change to Active.
+Once your cluster has gone to Active you can click on it and start exploring.
+
+## 5. Setup Persistent Storage using Longhorn
+From the Rancher UI, within the default project, navigate to the Apps section of the UI. From here, click on Launch, and search for the chart called Longhorn. Click on the icon.
+
+Leave the default settings as is, then scroll to the bottom and click Launch.
+
+Give the chart some time to deploy. When it finishes it will have registered a new storage class. Navigate to the storage section to view the storage class details.
+
+Now try launching an app with persistence enabled. From the Apps section, click Launch, then select wordpress. The wordpress chart will have a number of options we can configure. We just want to change the settings involving persistent storage. Find the options called WordPress Persistent Volume Enabled and MariaDB Persistent Volume Enabled and make these True. Then click Launch.
+
+That's it. Now your wordpress chart should create stateful sets with accompanying PVs. You can click on the app in the Apps page and see the PVs and related objects being created.
+
+## 6. Setup a Helm Catalog
+First, we need to setup a git repo. On rancher01:
+```bash
+cd 
+mkdir my_charts
+cd my_charts
+git init
+```
+Now we need to install the Helm CLI:
+```bash
+sudo wget -O helm.tar.gz \
+https://get.helm.sh/helm-v2.14.3-linux-amd64.tar.gz
+sudo tar -zxf helm.tar.gz
+sudo mv linux-amd64/helm /usr/local/bin/helm
+sudo chmod +x /usr/local/bin/helm
+sudo rm -rf linux-amd64
+sudo rm -f helm.tar.gz
+```
+Next we want to create a Helm Chart skeleton from which we can build our chart:
+```
+cd 
+cd my_charts
+helm create hello-world
+```
+To customize the chart to our uses, we can update the values.yml file like so:
+```bash
+cat << EOF > ~/my_charts/hello-world/values.yaml
+replicaCount: 1
+
+image:
+  repository: tutum/hello-world
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: on.hobbyfarm.io
+      paths: ["/"]
+
+  tls: []
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+EOF
+```
+Next we need to setup a simple git server to facilitate exposing this chart to Rancher. This will create a "catalog" from which Rancher can fetch Helm charts a user would like to deploy. In a real-world scenario, we'd likely host these repos on a git server or some internal Helm repository.
+```bash
+cd ~/my_charts/
+git config --global user.email "you@example.com"
+git config --global user.name "Your Name"
+git add --all
+git commit -a -m "first commit" 
+git config --global alias.quickserve "daemon --verbose --export-all --base-path=.git --reuseaddr --strict-paths .git/"
+git quickserve
+```
+Now in the Rancher UI go to "Add catalogs" and add the URL of this server:
+```
+git://172.31.44.79/
+```
+Your catalog should now be imported into the Apps section of the UI. Now simply go back to the Apps tab and click Launch. Then search for your app (hello-world) and click on the icon. Scroll to the bottom and click Launch.
