@@ -558,3 +558,262 @@ Now in the Rancher UI go to "Add catalogs" and add the URL of this server:
 git://172.31.44.79/
 ```
 Your catalog should now be imported into the Apps section of the UI. Now simply go back to the Apps tab and click Launch. Then search for your app (hello-world) and click on the icon. Scroll to the bottom and click Launch.
+
+# Lab Session Four
+## Step 1 - Install Kubernetes (K3s)
+K3s is simple to get started with - further information can be found at the official website.
+
+Running the following command to install k3s onto your Rancher Server VM:
+
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.19.5+k3s2 sh -
+ Click to run on developer
+This will take about 30 seconds to complete. To verify that it's working, run the following command:
+
+sudo k3s kubectl get node
+ Click to run on developer
+We now have a fully-functioning Kubernetes cluster that we can install Rancher into! 🎉
+
+## Step 2 - Install Rancher Server
+We are going to use Helm v3 to install Rancher Server into our cluster:
+
+sudo snap install helm --classic
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown -R ubuntu:ubuntu ~/.kube
+export KUBECONFIG=~/.kube/config
+ Click to run on developer
+After a successful installation of Helm, let's check to make sure we are ready to install Rancher:
+
+helm version --short
+ Click to run on developer
+We then need to install some prerequisites for Rancher, cert-manager is required to allow Rancher to generate its self signed certs. If you are installing using your own certificates this can be omitted. More information is available at Rancher Docs
+
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+helm install \
+  cert-manager --namespace cert-manager \
+  --create-namespace \
+  --version v1.4.0 \
+  --set installCRDs=true \
+  jetstack/cert-manager
+ Click to run on developer
+Once the Helm chart has installed, you can monitor the rollout status of both cert-manager and cert-manager-webhook:
+
+kubectl -n cert-manager rollout status deploy/cert-manager
+ Click to run on developer
+You should eventually receive output similar to:
+
+Waiting for deployment "cert-manager" rollout to finish: 0 of 1 updated replicas are available...
+
+deployment "cert-manager" successfully rolled out
+To check the status of the cert-manager-webhook, we can run a similar command:
+
+kubectl -n cert-manager rollout status deploy/cert-manager-webhook
+ Click to run on developer
+You should eventually receive output similar to:
+
+Waiting for deployment "cert-manager-webhook" rollout to finish: 0 of 1 updated replicas are available...
+
+deployment "cert-manager-webhook" successfully rolled out
+Next we will install Rancher:
+
+Install Rancher
+
+helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
+helm repo update
+helm install rancher rancher-latest/rancher --namespace cattle-system \
+  --create-namespace \
+  --set hostname=rancher.3.69.238.183.nip.io \
+  --version=2.5.11 \
+  --set replicas=1
+ Click to run on developer
+Before we access Rancher, we need to make sure that cert-manager has signed a certificate in order to make sure our connection to Rancher does not get interrupted. The following bash script will check for the certificate we are looking for.
+
+while true; do
+  curl -kv --insecure https://rancher.3.69.238.183.nip.io 2>&1 | grep -q "200"
+  if [ $? != 0 ]; then
+    echo "Rancher isn't ready yet"
+    sleep 5
+    continue
+  fi
+  break
+done
+echo "Rancher is Ready"
+ Click to run on developer
+This can take a few minutes, when it shows that "Rancher is Ready" you can proceed to the next step.
+
+## Step 3 - Accessing Rancher
+Access Rancher Server at https://rancher.3.69.238.183.nip.io
+Enter a password for the default admin user when prompted.
+When prompted, the Rancher Server URL should be rancher.3.69.238.183.nip.io, which is the hostname you used to access the server.
+You will see the Rancher UI, with the local cluster in it. The local cluster is the cluster where Rancher itself runs, and typically should not be used for deploying your demo workloads. However, for the purposes of this lab, we're going to use this cluster to install OPA Gatekeeper and demonstrate basic functionality.
+
+## Step 4 - Installing Open Policy Agent Gatekeeper
+With Rancher installed, we can set about installing Open Policy Agent Gatekeeper.
+
+Click on the 'Explorer' button for our local cluster
+Click on 'Apps' in the toolbar at the top
+Select 'OPA Gatekeeper', scroll to the bottom, and click 'Install' to deploy Gatekeeper with the default options
+Wait until rancher-gatekeeper is marked as Deployed
+Once OPA Gatekeeper has been installed to our cluster, we can begin to define policies (ConstraintTemplates) within our cluster, and enable them via Constraints.
+
+## Step 5 - Deploy privileged container
+First of all, let's see what happens when we deploy a privileged container with the default behaviour and no policy in place preventing such an action.
+
+In the Rancher UI, click on the dropdown menu in the top left-hand corner and select 'Cluster Explorer'.
+From the menu on the left, click 'Pods' under the 'Workload' section
+Click on the 'Create from YAML' button and paste in the following Pod definition, overwriting the existing example template:
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-test
+  namespace: default
+  labels:
+    app: nginx-privileged
+spec:
+  hostPID: true
+  containers:
+  - name: nginx
+    image: nginx
+    securityContext:
+      privileged: true
+Click on 'Create'.
+After a few seconds, you'll see that the Pod with a privileged container has been created successfully.
+
+## Step 6 - Installing and enabling an example Policy
+With the Rancher OPA Gatekeeper App installed to our cluster, we can install OPA policies and then have them applied and enforced.
+
+In this step, we're going to define a policy that denies the creation of privileged containers. The policy will tell OPA Gatekeeper to examine the spec for for any Pod and look for a securityContext section along with the privileged flag. If that's set to true, then Gatekeeper will return an error back to the client via the Kubernetes API Server.
+
+Let's create the ConstraintTemplate object for this policy:
+
+kubectl apply -f - << EOF
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8spspprivilegedcontainer
+  annotations:
+    description: Controls running of privileged containers.
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sPSPPrivilegedContainer
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8spspprivileged
+
+        violation[{"msg": msg, "details": {}}] {
+            c := input_containers[_]
+            c.securityContext.privileged
+            msg := sprintf("Privileged container is not allowed: %v, securityContext: %v", [c.name, c.securityContext])
+        }
+
+        input_containers[c] {
+            c := input.review.object.spec.containers[_]
+        }
+
+        input_containers[c] {
+            c := input.review.object.spec.initContainers[_]
+        }
+EOF
+ Click to run on developer
+Then we enable its enforcement for resources created under the Pod API Group:
+
+kubectl apply -f - << EOF
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sPSPPrivilegedContainer
+metadata:
+  name: psp-privileged-container
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+EOF
+ Click to run on developer
+With the both these resources defined, we should now be able to test OPA Gatekeeper to make sure it's enforcing our policy.
+
+## Step 7 - Test OPA Gatekeeper
+With our ConstraintTemplate defined and a Constraint in place targeting the Pod API Group, we can test what happens when a user attempts to create a privileged Pod.
+
+Back in the Rancher UI, click on the dropdown menu in the top left-hand corner and select 'Cluster Explorer'.
+From the menu on the left, click 'Pods' under the 'Workload' section
+Click on the 'Create from YAML' button and paste in the following Pod definition, overwriting the existing example template:
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  namespace: default
+  labels:
+    app: nginx-privileged
+spec:
+  hostPID: true
+  containers:
+  - name: nginx
+    image: nginx
+    securityContext:
+      privileged: true
+Click on 'Create'.
+You should see a red error box appear stating the specific reason as defined in our ConstraintTemplate. If so, congratulations! You've successfully installed OPA Gatekeeper to a Kubernetes cluster, created a custom policy, and ensured its enforcement.
+
+Feel free to explore the 'OPA Gatekeeper' workspace via the Rancher UI. You'll notice that there are two additional templates installed by default - k8sallowedrepos and k8srequiredlabels. Take a look at these to understand the policy restrictions they'd potentially impose.
+
+## Step 8 - Second policy example
+In this step, we're going to define a policy that ensures that namespaces have the required label. The policy will tell OPA Gatekeeper to examine the metadata for any Pod and look for a manager label. The setting for the label can be anything, it the policy just checks for the existence of the label.
+
+Let's create the ConstraintTemplate object for this policy:
+
+kubectl apply -f - << EOF
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: checklabeltemplate
+spec:
+  crd:
+    spec:
+      names:
+        kind: CheckLabelTemplate
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package checklabels
+        violation[{"msg": msg}] {
+          labels := { label | input.review.object.metadata.labels[label] }
+          required := { label | label := "manager"}
+          missing := required - labels
+          count(missing) > 0
+          msg := sprintf("Missing \"manager\" label, labels provided: %v", [labels])
+        }
+EOF
+ Click to run on developer
+Then we enable its enforcement for resources by creating a constraint:
+
+kubectl apply -f - << EOF
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: CheckLabelTemplate
+metadata:
+  name: check-for-label
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Namespace", Pod"]
+EOF
+ Click to run on developer
+With the both these resources defined, we should now be able to test OPA Gatekeeper to make sure it's enforcing our policy.
+
+Now let's create a resource of kind Namespace without the "manager" label to test our constraint:
+
+In the Rancher UI, click on the dropdown menu in the top left-hand corner and select 'Cluster Explorer'.
+From the menu on the left, click 'Pods' under the 'Workload' section.
+Click on the 'Create from YAML' button and paste in the following Pod definition, overwriting the existing example template:
+apiVersion: v1
+kind: Namespace
+metadata:
+ labels:
+     owner: "true"
+ name: test
+Click on 'Create'.
+After creating the Pod, you should have received an error about not finding the "manager" label.
+
