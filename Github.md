@@ -69,6 +69,20 @@ $ got remote add origin git@github.com:myname/repositoryname.git
 $ git pull --rebase --set-upstream origin main
 $ git push
 ```
+
+# Manage Multiple Github Accounts
+```bash
+$ ssh-keygen -t ed25519 -C 'my@mail.com' -f ~/.ssh/github_account
+## Upload content of the .pub file to Github account
+
+$ eval $(ssh-agent -s)
+$ ssh-add ~/.ssh/github_account
+
+# Inside repository folder
+$ git config user.name 'Your Name'
+$ git config user.email 'my@mail.com'
+$ git config core.sshCommand 'ssh -i ~/.ssh/github_account'
+```
 ##### TODO
 * Configure developer PowerShell in Visual Studio Code
 * Configure OpenSSH Agent on Windows
