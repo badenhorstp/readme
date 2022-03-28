@@ -81,7 +81,7 @@ $ ssh-add ~/.ssh/github_account
 # Inside repository folder
 $ git config user.name 'Your Name'
 $ git config user.email 'my@mail.com'
-$ git config core.sshCommand 'ssh -i ~/.ssh/github_account'
+$ git config core.sshCommand 'ssh -i ~/.ssh/github_account' # (git version >= 2.10.0)
 ```
 ##### TODO
 * Configure developer PowerShell in Visual Studio Code
