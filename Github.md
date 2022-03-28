@@ -36,6 +36,39 @@ Push to upstream remote repository
 $ git push --set-upstream origin master
 ```
 
+
+# Merge Github Repositories
+## Empty remote repository
+```bash
+$ echo 'Readme file' > README.md
+$ git init
+$ git add .
+$ git commit -m 'Initial commit'
+$ git branch -M main    # Rename branch to remote branch name or
+                        # set global config (git config --global init.
+                        # defaultBranch=<name>)(git version >= 2.28)
+$ git remote add origin git@github.com:myname/repositoryname.git
+$ git push -u origin main
+```
+
+## Empty local repository
+```bash
+$ git init
+$ git remote add origin git@github.com:myname/repositoryname.git
+$ git pull --set-upstream orign main
+
+```
+
+## Local and remote have branches
+```bash
+$ git int
+$ echo 'file0' > file0.txt
+$ git add .
+$ git commit -m 'Added file0.txt'
+$ got remote add origin git@github.com:myname/repositoryname.git
+$ git pull --rebase --set-upstream origin main
+$ git push
+```
 ##### TODO
 * Configure developer PowerShell in Visual Studio Code
 * Configure OpenSSH Agent on Windows
